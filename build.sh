@@ -53,7 +53,7 @@ rm -f /tmp/custom_block.txt
 
 echo "=== Verifying modifications ==="
 check() { local desc="$1" cmd="$2" expected="$3"
-  local got; got=$(eval "$cmd")
+  local got; got=$(eval "$cmd" || true)
   if [[ "$got" != "$expected" ]]; then
     echo "FAIL: $desc (expected $expected, got $got)"; exit 1
   fi
