@@ -4,6 +4,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MODPROBED_DB="$HOME/.config/modprobed.db"
 : "${MODPROBED_DB:?}"
+export SRCDEST="$SCRIPT_DIR/sources"
+mkdir -p "$SRCDEST"
 
 echo "=== Refreshing module database ==="
 if [[ ! -f "$MODPROBED_DB" ]]; then
