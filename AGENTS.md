@@ -59,7 +59,7 @@ This repo has two layers:
 5. Remove `"$pkgbase-docs"` from `pkgname` array
 6. Inject into `prepare()` after the first `make olddefconfig`:
    - `yes "" | make LSMOD=$HOME/.config/modprobed.db localmodconfig` (trim to used modules, auto-accept defaults for new config options)
-   - `scripts/config` calls for 13 kernel config options (see below)
+   - `scripts/config` calls for 12 kernel config options (see below)
    - A second `make olddefconfig` to resolve dependencies
 
 ### Kernel config optimizations
@@ -75,8 +75,7 @@ This repo has two layers:
 | `DEFAULT_TCP_CONG` | set `"bbr"` | BBR as default congestion control |
 | `NET_SCH_FQ` | enable | Fair queueing scheduler (BBR companion) |
 | `NR_CPUS` | set `64` | Down from 8192 (Ryzen 9 9955HX = 16 cores) |
-| `DEBUG_INFO_DWARF5` | disable | No debug info for smaller kernel image |
-| `DEBUG_INFO_NONE` | enable | Explicit no-debug-info selection |
+| `DEBUG_INFO_BTF` | enable | Explicit BTF data for BPF tooling (bpftool `vmlinux.h`). Keeps stock DWARF5 |
 | `LTO_CLANG_THIN` | enable | ThinLTO via Clang. Cross-TU link-time optimization, ~3-5% improvement |
 
 ### Key design decisions
@@ -88,6 +87,8 @@ This repo has two layers:
 - **BBRv1/v2 not v3**: BBRv3 is not in mainline as of 6.19.
 - **localmodconfig ordering**: Must be after `make olddefconfig` (needs a valid `.config`), and `scripts/config` must be after `localmodconfig` (to override any module decisions). Uses `yes "" |` to auto-accept defaults for new config options introduced in kernel updates, preventing interactive prompts.
 - **ThinLTO via Clang**: `CONFIG_LTO_CLANG_THIN` enabled. Cross-TU link-time optimization for ~3-5% improvement. Requires LLVM toolchain (`export LLVM=1` + clang/llvm/lld makedepends).
+- **Source caching**: `SRCDEST` is exported in `build.sh` (not in makepkg.conf) to `$SCRIPT_DIR/sources`. Avoids re-downloading kernel source tarballs on subsequent runs. The `sources/` directory is gitignored.
+- **DEBUG_INFO_BTF required**: Cannot use `DEBUG_INFO_NONE` — Arch's `build()` runs `bpftool vmlinux.h` which needs BTF data in vmlinux, which requires DWARF debug info. Stock `DEBUG_INFO_DWARF5` is kept and `DEBUG_INFO_BTF` is explicitly enabled.
 
 ### Modifying build.sh
 - All sed/awk patterns match CONTENT, not line numbers — verify patterns still match if the upstream Arch PKGBUILD changes.

@@ -25,7 +25,7 @@ Custom Arch Linux kernel build script for AMD Ryzen 9 9955HX (Zen 5). Fetches th
 | Clang -O3 | `CC_OPTIMIZE_FOR_PERFORMANCE_O3` on (replaces default `-O2`). ~1-3% improvement in kernel-heavy workloads |
 | LLVM/Clang toolchain | `export LLVM=1`, adds `clang`/`llvm`/`lld` makedepends. Required for ThinLTO |
 | ThinLTO | `CONFIG_LTO_CLANG_THIN` on. Cross-translation-unit link-time optimization via Clang. ~3-5% improvement |
-| No debug info | `DEBUG_INFO_DWARF5` off, `DEBUG_INFO_NONE` on. Smaller kernel image |
+| BPF type info | `DEBUG_INFO_BTF` enabled. Keeps stock DWARF5 — required for bpftool `vmlinux.h` generation |
 
 ## Prerequisites
 
@@ -44,7 +44,7 @@ cd linux-custom
 ./build.sh
 ```
 
-The script fetches a fresh PKGBUILD into `./linux` (replacing any existing contents) and builds there. Your `makepkg.conf` settings (CFLAGS, MAKEFLAGS, ccache, etc.) are applied automatically by makepkg.
+The script fetches a fresh PKGBUILD into `./linux` (replacing any existing contents) and builds there. Kernel source tarballs are cached in `./sources` (via `SRCDEST`) to avoid re-downloading on subsequent runs. Your `makepkg.conf` settings (CFLAGS, MAKEFLAGS, ccache, etc.) are applied automatically by makepkg.
 
 ## Installing
 
@@ -63,6 +63,7 @@ sudo pacman -U linux-custom-*.pkg.tar.zst linux-custom-headers-*.pkg.tar.zst
 - ThinLTO via Clang/LLVM (`CONFIG_LTO_CLANG_THIN`). Cross-TU link-time optimization for ~3-5% improvement.
 - No out-of-tree scheduler patches (BORE, BMQ, etc.). Stock EEVDF scheduler only.
 - `$HOME` used for all paths (tilde doesn't expand in double-quoted bash assignments).
+- Source tarballs cached via `SRCDEST` set in the script itself (not in makepkg.conf). Stored in `./sources`, gitignored.
 
 ## Repository structure
 
@@ -71,6 +72,7 @@ sudo pacman -U linux-custom-*.pkg.tar.zst linux-custom-headers-*.pkg.tar.zst
 ├── build.sh          # Custom kernel build script
 ├── README.md         # This file
 ├── custom.patch       # Reserved for future patches (currently empty)
+├── sources/           # Cached kernel source tarballs via SRCDEST (gitignored)
 ├── linux/             # Fetched by build.sh via paru (gitignored, replaced each run)
 │   ├── PKGBUILD
 │   ├── config.x86_64
