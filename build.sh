@@ -31,6 +31,8 @@ cat > /tmp/custom_block.txt << BLOCK
   make LSMOD=$MODPROBED_DB localmodconfig
 
   echo "Applying custom kernel config..."
+  scripts/config --disable CC_OPTIMIZE_FOR_PERFORMANCE
+  scripts/config --enable CC_OPTIMIZE_FOR_PERFORMANCE_O3
   scripts/config --enable X86_NATIVE_CPU
   scripts/config --disable CPU_MITIGATIONS
   scripts/config --disable TRANSPARENT_HUGEPAGE_ALWAYS
@@ -68,6 +70,7 @@ check "BBR configured"           "grep -c 'DEFAULT_TCP_CONG' PKGBUILD" "1"
 check "NR_CPUS set"              "grep -c 'NR_CPUS' PKGBUILD" "1"
 check "DEBUG_INFO_NONE set"      "grep -c 'DEBUG_INFO_NONE' PKGBUILD" "1"
 check "THP madvise set"          "grep -c 'TRANSPARENT_HUGEPAGE_MADVISE' PKGBUILD" "1"
+check "O3 optimization set"      "grep -c 'CC_OPTIMIZE_FOR_PERFORMANCE_O3' PKGBUILD" "1"
 echo "All modifications verified."
 
 echo "=== Starting kernel build ==="
