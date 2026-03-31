@@ -64,6 +64,10 @@ awk '
     print "  scripts/config --enable DEBUG_INFO_BTF"
     print "  scripts/config --enable LTO_CLANG_THIN"
     print ""
+    print "  echo \"Force-enabling initramfs-critical modules...\""
+    print "  scripts/config --module CRYPTO_LZ4"
+    print "  scripts/config --module DM_INTEGRITY"
+    print ""
     print "  echo \"Resolving config dependencies...\""
     print "  make olddefconfig"
     injected=1
@@ -95,6 +99,8 @@ check "THP madvise set"          'TRANSPARENT_HUGEPAGE_MADVISE'    1
 check "O3 optimization set"      'CC_OPTIMIZE_FOR_PERFORMANCE_O3'  1
 check "LLVM enabled"             '^export LLVM=1$'                 1
 check "ThinLTO set"              'LTO_CLANG_THIN'                  1
+check "CRYPTO_LZ4 forced"         'CRYPTO_LZ4'                      1
+check "DM_INTEGRITY forced"       'DM_INTEGRITY'                    1
 echo "All modifications verified."
 
 echo "=== Starting kernel build ==="
