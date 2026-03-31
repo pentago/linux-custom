@@ -129,7 +129,8 @@ check "LLVM enabled"             '^export LLVM=1$'                 1
 check "ThinLTO set"              'LTO_CLANG_THIN'                  1
 check "CRYPTO_LZ4 forced"        'CRYPTO_LZ4'                      1
 check "DM_INTEGRITY forced"      'DM_INTEGRITY'                    1
-check "BORE patch in source"     'bore\.patch'                     2
+check "BORE patch in source"     'bore\.patch'                     1
+check "BORE b2sum added"         "b2sums_x86_64=.*' '"             1
 check "SCHED_BORE enabled"       'SCHED_BORE'                      1
 echo "All modifications verified."
 
