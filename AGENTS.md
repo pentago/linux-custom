@@ -48,7 +48,7 @@ This repo has two layers:
 1. Runs `modprobed-db store` to refresh the module database
 2. Fetches a fresh Arch `linux` PKGBUILD via `paru -G linux` into `./linux` (replacing any existing contents)
 3. Patches the PKGBUILD inline with sed/awk (content-matching patterns only, no line numbers)
-4. Runs 15 post-patch grep assertions to verify all modifications applied
+4. Runs 17 post-patch grep assertions to verify all modifications applied
 5. Runs `makepkg -s` to build the customized kernel
 
 ### PKGBUILD modifications applied (in order)
@@ -60,6 +60,7 @@ This repo has two layers:
 6. Inject into `prepare()` after the first `make olddefconfig`:
    - `yes "" | make LSMOD=$HOME/.config/modprobed.db localmodconfig` (trim to used modules, auto-accept defaults for new config options)
    - `scripts/config` calls for 12 kernel config options (see below)
+   - `scripts/config --module` for 2 initramfs-critical modules (`CRYPTO_LZ4`, `DM_INTEGRITY`) missed by `localmodconfig`
    - A second `make olddefconfig` to resolve dependencies
 
 ### Kernel config optimizations
@@ -77,6 +78,8 @@ This repo has two layers:
 | `NR_CPUS` | set `64` | Down from 8192 (Ryzen 9 9955HX = 16 cores) |
 | `DEBUG_INFO_BTF` | enable | Explicit BTF data for BPF tooling (bpftool `vmlinux.h`). Keeps stock DWARF5 |
 | `LTO_CLANG_THIN` | enable | ThinLTO via Clang. Cross-TU link-time optimization, ~3-5% improvement |
+| `CRYPTO_LZ4` | module | Required by mkinitcpio `systemd` hook. Missed by `localmodconfig` (loaded on-demand by crypto subsystem) |
+| `DM_INTEGRITY` | module | Required by mkinitcpio `sd-encrypt` hook. Missed by `localmodconfig` |
 
 ### Key design decisions
 - **sed/awk not unified diff**: Patches via content-matching sed/awk patterns, not a `.patch` file. This is resilient to upstream PKGBUILD line number changes across kernel releases.
@@ -94,7 +97,7 @@ This repo has two layers:
 - All sed/awk patterns match CONTENT, not line numbers — verify patterns still match if the upstream Arch PKGBUILD changes.
 - The single awk pass handles htmldocs makedepends block removal, `_package-docs()` removal, and config injection after `make olddefconfig` — if Arch changes function formatting or makedepends block structure, the awk patterns may need updating.
 - After modifying, always run: `bash -n build.sh` and re-verify grep assertion expected counts.
-- The 15 grep assertions in the script itself catch broken patches at runtime — keep them in sync with any sed/awk changes.
+- The 17 grep assertions in the script itself catch broken patches at runtime — keep them in sync with any sed/awk changes.
 
 ### Environment requirements
 - `paru` (AUR helper) installed
@@ -151,7 +154,7 @@ Run these from `linux/` unless stated otherwise.
 - `build.sh`
   - custom kernel build script at repo root; fetches, patches, and builds the kernel
   - uses sed/awk content patterns — no line-number-based modifications
-  - contains 15 grep assertions that self-verify all patches applied correctly
+  - contains 17 grep assertions that self-verify all patches applied correctly
 - `linux/PKGBUILD`
   - source of truth for package metadata, sources, and build/package phases
   - build.sh fetches a fresh copy via `paru -G linux` into `./linux`, replacing any existing contents
