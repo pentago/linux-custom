@@ -20,6 +20,29 @@ cd "$SCRIPT_DIR"
 paru -G linux
 cd linux
 
+echo "=== Fetching BORE scheduler patch ==="
+KERNEL_VER=$(grep '^pkgver=' PKGBUILD | cut -d= -f2)
+KERNEL_MAJOR_MINOR=$(echo "$KERNEL_VER" | cut -d. -f1,2)
+BORE_PATCH_DIR="patches/stable/linux-${KERNEL_MAJOR_MINOR}-bore"
+echo "Kernel: $KERNEL_VER — fetching BORE for linux-${KERNEL_MAJOR_MINOR}"
+
+rm -rf "$SCRIPT_DIR/bore-tmp"
+git clone --depth=1 --filter=blob:none --sparse \
+  https://github.com/firelzrd/bore-scheduler.git "$SCRIPT_DIR/bore-tmp"
+git -C "$SCRIPT_DIR/bore-tmp" sparse-checkout set "$BORE_PATCH_DIR"
+
+BORE_PATCH_FILE=$(find "$SCRIPT_DIR/bore-tmp/$BORE_PATCH_DIR" -name '0001-*.patch' | head -1)
+if [[ -z "$BORE_PATCH_FILE" ]]; then
+  echo "FAIL: No BORE patch found for kernel ${KERNEL_MAJOR_MINOR} in ${BORE_PATCH_DIR}"
+  rm -rf "$SCRIPT_DIR/bore-tmp"
+  exit 1
+fi
+echo "Using: $(basename "$BORE_PATCH_FILE")"
+cp "$BORE_PATCH_FILE" bore.patch
+rm -rf "$SCRIPT_DIR/bore-tmp"
+
+BORE_B2=$(b2sum bore.patch | cut -d' ' -f1)
+
 echo "=== Patching PKGBUILD ==="
 
 # Pass 1: simple substitutions and deletions
@@ -29,7 +52,11 @@ sed -i \
   -e '/"\$pkgbase-docs"/d' \
   -e '/^export KBUILD_BUILD_HOST/i export LLVM=1' \
   -e '/^makedepends=(/a\  clang\n  llvm\n  lld' \
+  -e 's/^source_x86_64=(config\.x86_64)$/source_x86_64=(config.x86_64\n  bore.patch)/' \
   PKGBUILD
+
+# Add BORE b2sum to b2sums_x86_64 (append before closing paren)
+sed -i "/^b2sums_x86_64=('/ s/)$/ '$BORE_B2')/" PKGBUILD
 
 # Pass 2: block removal + config injection (single awk pass)
 awk '
@@ -63,6 +90,7 @@ awk '
     print "  scripts/config --set-val NR_CPUS 64"
     print "  scripts/config --enable DEBUG_INFO_BTF"
     print "  scripts/config --enable LTO_CLANG_THIN"
+    print "  scripts/config --enable SCHED_BORE"
     print ""
     print "  echo \"Force-enabling initramfs-critical modules...\""
     print "  scripts/config --module CRYPTO_LZ4"
@@ -99,8 +127,10 @@ check "THP madvise set"          'TRANSPARENT_HUGEPAGE_MADVISE'    1
 check "O3 optimization set"      'CC_OPTIMIZE_FOR_PERFORMANCE_O3'  1
 check "LLVM enabled"             '^export LLVM=1$'                 1
 check "ThinLTO set"              'LTO_CLANG_THIN'                  1
-check "CRYPTO_LZ4 forced"         'CRYPTO_LZ4'                      1
-check "DM_INTEGRITY forced"       'DM_INTEGRITY'                    1
+check "CRYPTO_LZ4 forced"        'CRYPTO_LZ4'                      1
+check "DM_INTEGRITY forced"      'DM_INTEGRITY'                    1
+check "BORE patch in source"     'bore\.patch'                     2
+check "SCHED_BORE enabled"       'SCHED_BORE'                      1
 echo "All modifications verified."
 
 echo "=== Starting kernel build ==="
