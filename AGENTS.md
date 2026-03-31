@@ -46,9 +46,9 @@ This repo has two layers:
 
 ### What it does
 1. Runs `modprobed-db store` to refresh the module database
-2. Fetches a fresh Arch `linux` PKGBUILD via `paru -G linux` into `$HOME/linux-custom-build/`
+2. Fetches a fresh Arch `linux` PKGBUILD via `paru -G linux` into `./linux` (replacing any existing contents)
 3. Patches the PKGBUILD inline with sed/awk (content-matching patterns only, no line numbers)
-4. Runs 12 post-patch grep assertions to verify all modifications applied
+4. Runs 13 post-patch grep assertions to verify all modifications applied
 5. Runs `makepkg -s` to build the customized kernel
 
 ### PKGBUILD modifications applied (in order)
@@ -59,12 +59,14 @@ This repo has two layers:
 5. Remove `"$pkgbase-docs"` from `pkgname` array
 6. Inject into `prepare()` after the first `make olddefconfig`:
    - `make LSMOD=$HOME/.config/modprobed.db localmodconfig` (trim to used modules)
-   - `scripts/config` calls for 10 kernel config options (see below)
+   - `scripts/config` calls for 12 kernel config options (see below)
    - A second `make olddefconfig` to resolve dependencies
 
 ### Kernel config optimizations
 | Option | Action | Rationale |
 |---|---|---|
+| `CC_OPTIMIZE_FOR_PERFORMANCE` | disable | Replaced by `-O3` below |
+| `CC_OPTIMIZE_FOR_PERFORMANCE_O3` | enable | GCC `-O3` optimization (default is `-O2`). ~1-3% improvement in kernel-heavy workloads |
 | `X86_NATIVE_CPU` | enable | `-march=native` at kernel level (mainline 6.16+) |
 | `CPU_MITIGATIONS` | disable | Single toggle cascades to all 25 `MITIGATION_*` options |
 | `TRANSPARENT_HUGEPAGE_ALWAYS` | disable | Switch THP to madvise-only |
@@ -78,9 +80,9 @@ This repo has two layers:
 
 ### Key design decisions
 - **sed/awk not unified diff**: Patches via content-matching sed/awk patterns, not a `.patch` file. This is resilient to upstream PKGBUILD line number changes across kernel releases.
-- **Separate build directory**: Script builds in `$HOME/linux-custom-build/`, NOT in the repo's `linux/` directory, to avoid stomping the nested git repo.
+- **Build in `./linux`**: Script fetches into `./linux` relative to `build.sh` location. The `linux/` directory is `.gitignore`d and replaced fresh on every run.
 - **`$HOME` for paths**: Variables use `$HOME` (not `~` — tilde doesn't expand inside double-quoted assignments).
-- **makepkg.conf BUILDDIR respected**: The script's `BUILD_DIR` is just the PKGBUILD working directory. The user's `makepkg.conf` `BUILDDIR` (tmpfs) is used by `makepkg` for actual compilation.
+- **makepkg.conf BUILDDIR respected**: The user's `makepkg.conf` `BUILDDIR` (tmpfs) is used by `makepkg` for actual compilation.
 - **No graysky2 patch needed**: `CONFIG_X86_NATIVE_CPU` is in mainline since 6.16.
 - **BBRv1/v2 not v3**: BBRv3 is not in mainline as of 6.19.
 - **localmodconfig ordering**: Must be after `make olddefconfig` (needs a valid `.config`), and `scripts/config` must be after `localmodconfig` (to override any module decisions).
@@ -89,9 +91,9 @@ This repo has two layers:
 ### Modifying build.sh
 - All sed/awk patterns match CONTENT, not line numbers — verify patterns still match if the upstream Arch PKGBUILD changes.
 - The awk injection for `_package-docs()` removal matches the exact function signature `^_package-docs() {$` with closing `^}$` — if Arch changes the function formatting, the awk may need updating.
-- The heredoc at line 26 uses unquoted `<< BLOCK` — `$HOME` and `$MODPROBED_DB` expand at script runtime. This is intentional.
+- The heredoc uses unquoted `<< BLOCK` — `$HOME` and `$MODPROBED_DB` expand at script runtime. This is intentional.
 - After modifying, always run: `bash -n build.sh` and re-verify grep assertion expected counts.
-- The 12 grep assertions in the script itself catch broken patches at runtime — keep them in sync with any sed/awk changes.
+- The 13 grep assertions in the script itself catch broken patches at runtime — keep them in sync with any sed/awk changes.
 
 ### Environment requirements
 - `paru` (AUR helper) installed
@@ -147,10 +149,10 @@ Run these from `linux/` unless stated otherwise.
 - `build.sh`
   - custom kernel build script at repo root; fetches, patches, and builds the kernel
   - uses sed/awk content patterns — no line-number-based modifications
-  - contains 12 grep assertions that self-verify all patches applied correctly
+  - contains 13 grep assertions that self-verify all patches applied correctly
 - `linux/PKGBUILD`
   - source of truth for package metadata, sources, and build/package phases
-  - build.sh modifies a FRESH COPY of this (fetched via `paru -G linux`), never the repo's copy
+  - build.sh fetches a fresh copy via `paru -G linux` into `./linux`, replacing any existing contents
 - `linux/.SRCINFO`
   - generated from `PKGBUILD`; keep in sync
 - `linux/config.x86_64`

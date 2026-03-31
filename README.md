@@ -7,7 +7,7 @@ Custom Arch Linux kernel build script for AMD Ryzen 9 9955HX (Zen 5). Fetches th
 - Refreshes module database via `modprobed-db store`
 - Fetches fresh Arch `linux` PKGBUILD via `paru -G linux`
 - Patches the PKGBUILD inline with sed/awk (content-matching, no line numbers)
-- Runs 12 grep assertions to verify all patches applied correctly
+- Runs 13 grep assertions to verify all patches applied correctly
 - Builds the `linux-custom` package with `makepkg -s`
 
 ## PKGBUILD modifications
@@ -22,6 +22,7 @@ Custom Arch Linux kernel build script for AMD Ryzen 9 9955HX (Zen 5). Fetches th
 | THP madvise | Switches Transparent HugePages from `always` to `madvise`. Better for gaming/desktop |
 | TCP BBR | `CONFIG_TCP_CONG_BBR` built-in, `DEFAULT_TCP_CONG="bbr"`, `NET_SCH_FQ` enabled |
 | Reduce NR_CPUS | 8192 -> 64 (Ryzen 9 9955HX has 16 cores / 32 threads) |
+| GCC -O3 | `CC_OPTIMIZE_FOR_PERFORMANCE_O3` on (replaces default `-O2`). ~1-3% improvement in kernel-heavy workloads |
 | No debug info | `DEBUG_INFO_DWARF5` off, `DEBUG_INFO_NONE` on. Smaller kernel image |
 
 ## Prerequisites
@@ -55,7 +56,7 @@ sudo pacman -U linux-custom-*.pkg.tar.zst linux-custom-headers-*.pkg.tar.zst
 
 - All PKGBUILD patches use content-matching sed/awk, not line numbers. This makes them resilient to upstream changes across kernel releases.
 - `linux/` is `.gitignore`d and replaced fresh on every run.
-- 12 post-patch grep assertions fail the script immediately if any modification didn't apply.
+- 13 post-patch grep assertions fail the script immediately if any modification didn't apply.
 - No LTO (requires Clang; this setup uses GCC).
 - No out-of-tree scheduler patches (BORE, BMQ, etc.). Stock EEVDF scheduler only.
 - `$HOME` used for all paths (tilde doesn't expand in double-quoted bash assignments).
