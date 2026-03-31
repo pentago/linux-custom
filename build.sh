@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-BUILD_DIR="$HOME/linux-custom-build"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MODPROBED_DB="$HOME/.config/modprobed.db"
 : "${MODPROBED_DB:?}"
 
@@ -13,9 +13,8 @@ fi
 modprobed-db store
 
 echo "=== Fetching Arch linux PKGBUILD ==="
-rm -rf "$BUILD_DIR"
-mkdir -p "$BUILD_DIR"
-cd "$BUILD_DIR"
+rm -rf "$SCRIPT_DIR/linux"
+cd "$SCRIPT_DIR"
 paru -G linux
 cd linux
 

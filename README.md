@@ -40,21 +40,21 @@ cd linux-custom
 ./build.sh
 ```
 
-The script builds in `$HOME/linux-custom-build/`, not in this repository. Your `makepkg.conf` settings (CFLAGS, MAKEFLAGS, ccache, etc.) are applied automatically by makepkg.
+The script fetches a fresh PKGBUILD into `./linux` (replacing any existing contents) and builds there. Your `makepkg.conf` settings (CFLAGS, MAKEFLAGS, ccache, etc.) are applied automatically by makepkg.
 
 ## Installing
 
-After a successful build, install the packages from `$HOME/linux-custom-build/linux/`:
+After a successful build, install the packages from `linux/`:
 
 ```bash
-cd ~/linux-custom-build/linux
+cd linux
 sudo pacman -U linux-custom-*.pkg.tar.zst linux-custom-headers-*.pkg.tar.zst
 ```
 
 ## Design decisions
 
 - All PKGBUILD patches use content-matching sed/awk, not line numbers. This makes them resilient to upstream changes across kernel releases.
-- Builds in a separate directory to avoid conflicts with any existing `linux/` checkout.
+- `linux/` is `.gitignore`d and replaced fresh on every run.
 - 12 post-patch grep assertions fail the script immediately if any modification didn't apply.
 - No LTO (requires Clang; this setup uses GCC).
 - No out-of-tree scheduler patches (BORE, BMQ, etc.). Stock EEVDF scheduler only.
@@ -66,7 +66,7 @@ sudo pacman -U linux-custom-*.pkg.tar.zst linux-custom-headers-*.pkg.tar.zst
 .
 ├── build.sh          # Custom kernel build script
 ├── custom.patch       # Reserved for future patches (currently empty)
-├── linux/             # Reference Arch linux PKGBUILD (not modified by build.sh)
+├── linux/             # Fetched by build.sh via paru (gitignored, replaced each run)
 │   ├── PKGBUILD
 │   ├── config.x86_64
 │   └── ...
