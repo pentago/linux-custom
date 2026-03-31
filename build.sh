@@ -24,6 +24,8 @@ sed -i '/^  # htmldocs$/,/^  texlive-latexextra$/d' PKGBUILD
 sed -i '/make htmldocs/d' PKGBUILD
 awk '/^_package-docs\(\) \{$/{skip=1} skip{if(/^\}$/){skip=0; next} next} 1' PKGBUILD > PKGBUILD.tmp && mv PKGBUILD.tmp PKGBUILD
 sed -i '/"\$pkgbase-docs"/d' PKGBUILD
+sed -i '/^export KBUILD_BUILD_HOST/i export LLVM=1' PKGBUILD
+sed -i '/^makedepends=(/a\  clang\n  llvm\n  lld' PKGBUILD
 
 cat > /tmp/custom_block.txt << BLOCK
 
@@ -43,6 +45,7 @@ cat > /tmp/custom_block.txt << BLOCK
   scripts/config --set-val NR_CPUS 64
   scripts/config --disable DEBUG_INFO_DWARF5
   scripts/config --enable DEBUG_INFO_NONE
+  scripts/config --enable LTO_CLANG_THIN
 
   echo "Resolving config dependencies..."
   make olddefconfig
@@ -71,6 +74,8 @@ check "NR_CPUS set"              "grep -c 'NR_CPUS' PKGBUILD" "1"
 check "DEBUG_INFO_NONE set"      "grep -c 'DEBUG_INFO_NONE' PKGBUILD" "1"
 check "THP madvise set"          "grep -c 'TRANSPARENT_HUGEPAGE_MADVISE' PKGBUILD" "1"
 check "O3 optimization set"      "grep -c 'CC_OPTIMIZE_FOR_PERFORMANCE_O3' PKGBUILD" "1"
+check "LLVM enabled"             "grep -c '^export LLVM=1$' PKGBUILD" "1"
+check "ThinLTO set"              "grep -c 'LTO_CLANG_THIN' PKGBUILD" "1"
 echo "All modifications verified."
 
 echo "=== Starting kernel build ==="
