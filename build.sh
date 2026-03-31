@@ -20,28 +20,41 @@ cd "$SCRIPT_DIR"
 paru -G linux
 cd linux
 
-echo "=== Fetching BORE scheduler patch ==="
+echo "=== Fetching CachyOS patches ==="
 KERNEL_VER=$(grep '^pkgver=' PKGBUILD | cut -d= -f2)
 KERNEL_MAJOR_MINOR=$(echo "$KERNEL_VER" | cut -d. -f1,2)
-BORE_PATCH_DIR="patches/stable/linux-${KERNEL_MAJOR_MINOR}-bore"
-echo "Kernel: $KERNEL_VER — fetching BORE for linux-${KERNEL_MAJOR_MINOR}"
+echo "Kernel: $KERNEL_VER — fetching CachyOS patches for ${KERNEL_MAJOR_MINOR}"
 
-rm -rf "$SCRIPT_DIR/bore-tmp"
+rm -rf "$SCRIPT_DIR/cachy-tmp"
 git clone --depth=1 --filter=blob:none --sparse \
-  https://github.com/firelzrd/bore-scheduler.git "$SCRIPT_DIR/bore-tmp"
-git -C "$SCRIPT_DIR/bore-tmp" sparse-checkout set "$BORE_PATCH_DIR"
+  https://github.com/CachyOS/kernel-patches.git "$SCRIPT_DIR/cachy-tmp"
+git -C "$SCRIPT_DIR/cachy-tmp" sparse-checkout set \
+  "${KERNEL_MAJOR_MINOR}/all" \
+  "${KERNEL_MAJOR_MINOR}/sched"
 
-BORE_PATCH_FILE=$(find "$SCRIPT_DIR/bore-tmp/$BORE_PATCH_DIR" -name '0001-*.patch' | head -1)
-if [[ -z "$BORE_PATCH_FILE" ]]; then
-  echo "FAIL: No BORE patch found for kernel ${KERNEL_MAJOR_MINOR} in ${BORE_PATCH_DIR}"
-  rm -rf "$SCRIPT_DIR/bore-tmp"
+CACHY_BASE_PATCH=$(find "$SCRIPT_DIR/cachy-tmp/${KERNEL_MAJOR_MINOR}/all" \
+  -name '0001-cachyos-base-all.patch' | head -1)
+CACHY_BORE_PATCH=$(find "$SCRIPT_DIR/cachy-tmp/${KERNEL_MAJOR_MINOR}/sched" \
+  -name '0001-bore-cachy.patch' | head -1)
+
+if [[ -z "$CACHY_BASE_PATCH" ]]; then
+  echo "FAIL: No CachyOS base patch found for kernel ${KERNEL_MAJOR_MINOR}"
+  rm -rf "$SCRIPT_DIR/cachy-tmp"
   exit 1
 fi
-echo "Using: $(basename "$BORE_PATCH_FILE")"
-cp "$BORE_PATCH_FILE" bore.patch
-rm -rf "$SCRIPT_DIR/bore-tmp"
+if [[ -z "$CACHY_BORE_PATCH" ]]; then
+  echo "FAIL: No CachyOS BORE patch found for kernel ${KERNEL_MAJOR_MINOR}"
+  rm -rf "$SCRIPT_DIR/cachy-tmp"
+  exit 1
+fi
 
-BORE_B2=$(b2sum bore.patch | cut -d' ' -f1)
+cp "$CACHY_BASE_PATCH" cachyos-base.patch
+cp "$CACHY_BORE_PATCH" cachyos-bore.patch
+rm -rf "$SCRIPT_DIR/cachy-tmp"
+echo "Fetched: cachyos-base.patch, cachyos-bore.patch"
+
+CACHY_BASE_B2=$(b2sum cachyos-base.patch | cut -d' ' -f1)
+CACHY_BORE_B2=$(b2sum cachyos-bore.patch | cut -d' ' -f1)
 
 echo "=== Patching PKGBUILD ==="
 
@@ -52,11 +65,11 @@ sed -i \
   -e '/"\$pkgbase-docs"/d' \
   -e '/^export KBUILD_BUILD_HOST/i export LLVM=1' \
   -e '/^makedepends=(/a\  clang\n  llvm\n  lld' \
-  -e 's/^source_x86_64=(config\.x86_64)$/source_x86_64=(config.x86_64\n  bore.patch)/' \
+  -e 's/^source_x86_64=(config\.x86_64)$/source_x86_64=(config.x86_64\n  cachyos-base.patch\n  cachyos-bore.patch)/' \
   PKGBUILD
 
-# Add BORE b2sum to b2sums_x86_64 (append before closing paren)
-sed -i "/^b2sums_x86_64=('/ s/)$/ '$BORE_B2')/" PKGBUILD
+# Add both CachyOS patch b2sums to b2sums_x86_64
+sed -i "/^b2sums_x86_64=('/ s/)$/ '$CACHY_BASE_B2' '$CACHY_BORE_B2')/" PKGBUILD
 
 # Pass 2: block removal + config injection (single awk pass)
 awk '
@@ -90,6 +103,7 @@ awk '
     print "  scripts/config --set-val NR_CPUS 64"
     print "  scripts/config --enable DEBUG_INFO_BTF"
     print "  scripts/config --enable LTO_CLANG_THIN"
+    print "  scripts/config --enable CACHY"
     print "  scripts/config --enable SCHED_BORE"
     print ""
     print "  echo \"Force-enabling initramfs-critical modules...\""
@@ -112,26 +126,28 @@ check() { local desc="$1" pattern="$2" expected="$3"
     echo "FAIL: $desc (expected $expected, got $got)"; exit 1
   fi
 }
-check "pkgbase rename"           '^pkgbase=linux-custom$'          1
-check "htmldocs removed"         'make htmldocs'                   0
-check "_package-docs removed"    '_package-docs()'                 0
-check "docs pkgname removed"     '"[$]pkgbase-docs"'               0
-check "graphviz removed"         'graphviz'                        0
-check "localmodconfig injected"  'localmodconfig'                  2
-check "X86_NATIVE_CPU set"       'X86_NATIVE_CPU'                  1
-check "CPU_MITIGATIONS set"      'CPU_MITIGATIONS'                 1
-check "BBR configured"           'DEFAULT_TCP_CONG'                1
-check "NR_CPUS set"              'NR_CPUS'                         1
-check "DEBUG_INFO_BTF set"       'enable DEBUG_INFO_BTF$'          1
-check "THP madvise set"          'TRANSPARENT_HUGEPAGE_MADVISE'    1
-check "O3 optimization set"      'CC_OPTIMIZE_FOR_PERFORMANCE_O3'  1
-check "LLVM enabled"             '^export LLVM=1$'                 1
-check "ThinLTO set"              'LTO_CLANG_THIN'                  1
-check "CRYPTO_LZ4 forced"        'CRYPTO_LZ4'                      1
-check "DM_INTEGRITY forced"      'DM_INTEGRITY'                    1
-check "BORE patch in source"     'bore\.patch'                     1
-check "BORE b2sum added"         "b2sums_x86_64=.*' '"             1
-check "SCHED_BORE enabled"       'SCHED_BORE'                      1
+check "pkgbase rename"              '^pkgbase=linux-custom$'          1
+check "htmldocs removed"            'make htmldocs'                   0
+check "_package-docs removed"       '_package-docs()'                 0
+check "docs pkgname removed"        '"[$]pkgbase-docs"'               0
+check "graphviz removed"            'graphviz'                        0
+check "localmodconfig injected"     'localmodconfig'                  2
+check "X86_NATIVE_CPU set"          'X86_NATIVE_CPU'                  1
+check "CPU_MITIGATIONS set"         'CPU_MITIGATIONS'                 1
+check "BBR configured"              'DEFAULT_TCP_CONG'                1
+check "NR_CPUS set"                 'NR_CPUS'                         1
+check "DEBUG_INFO_BTF set"          'enable DEBUG_INFO_BTF$'          1
+check "THP madvise set"             'TRANSPARENT_HUGEPAGE_MADVISE'    1
+check "O3 optimization set"         'CC_OPTIMIZE_FOR_PERFORMANCE_O3'  1
+check "LLVM enabled"                '^export LLVM=1$'                 1
+check "ThinLTO set"                 'LTO_CLANG_THIN'                  1
+check "CRYPTO_LZ4 forced"           'CRYPTO_LZ4'                      1
+check "DM_INTEGRITY forced"         'DM_INTEGRITY'                    1
+check "CachyOS base patch in source" 'cachyos-base\.patch'            1
+check "CachyOS BORE patch in source" 'cachyos-bore\.patch'            1
+check "CachyOS b2sums added"        "b2sums_x86_64=.*' '.*' '"        1
+check "CACHY enabled"               'enable CACHY$'                   1
+check "SCHED_BORE enabled"          'SCHED_BORE'                      1
 echo "All modifications verified."
 
 echo "=== Starting kernel build ==="
