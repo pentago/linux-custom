@@ -19,63 +19,81 @@ paru -G linux
 cd linux
 
 echo "=== Patching PKGBUILD ==="
-sed -i 's/^pkgbase=linux$/pkgbase=linux-custom/' PKGBUILD
-sed -i '/^  # htmldocs$/,/^  texlive-latexextra$/d' PKGBUILD
-sed -i '/make htmldocs/d' PKGBUILD
-awk '/^_package-docs\(\) \{$/{skip=1} skip{if(/^\}$/){skip=0; next} next} 1' PKGBUILD > PKGBUILD.tmp && mv PKGBUILD.tmp PKGBUILD
-sed -i '/"\$pkgbase-docs"/d' PKGBUILD
-sed -i '/^export KBUILD_BUILD_HOST/i export LLVM=1' PKGBUILD
-sed -i '/^makedepends=(/a\  clang\n  llvm\n  lld' PKGBUILD
 
-cat > /tmp/custom_block.txt << BLOCK
+# Pass 1: simple substitutions and deletions
+sed -i \
+  -e 's/^pkgbase=linux$/pkgbase=linux-custom/' \
+  -e '/make htmldocs/d' \
+  -e '/"\$pkgbase-docs"/d' \
+  -e '/^export KBUILD_BUILD_HOST/i export LLVM=1' \
+  -e '/^makedepends=(/a\  clang\n  llvm\n  lld' \
+  PKGBUILD
 
-  echo "Trimming to used modules with localmodconfig..."
-  make LSMOD=$MODPROBED_DB localmodconfig
+# Pass 2: block removal + config injection (single awk pass)
+awk '
+  # Remove htmldocs makedepends block
+  /^  # htmldocs$/ { skip_html=1; next }
+  skip_html && /^  texlive-latexextra$/ { skip_html=0; next }
+  skip_html { next }
 
-  echo "Applying custom kernel config..."
-  scripts/config --disable CC_OPTIMIZE_FOR_PERFORMANCE
-  scripts/config --enable CC_OPTIMIZE_FOR_PERFORMANCE_O3
-  scripts/config --enable X86_NATIVE_CPU
-  scripts/config --disable CPU_MITIGATIONS
-  scripts/config --disable TRANSPARENT_HUGEPAGE_ALWAYS
-  scripts/config --enable TRANSPARENT_HUGEPAGE_MADVISE
-  scripts/config --enable TCP_CONG_BBR
-  scripts/config --set-str DEFAULT_TCP_CONG bbr
-  scripts/config --enable NET_SCH_FQ
-  scripts/config --set-val NR_CPUS 64
-  scripts/config --disable DEBUG_INFO_DWARF5
-  scripts/config --enable DEBUG_INFO_NONE
-  scripts/config --enable LTO_CLANG_THIN
+  # Remove _package-docs() function
+  /^_package-docs\(\) \{$/ { skip_docs=1; next }
+  skip_docs && /^\}$/ { skip_docs=0; next }
+  skip_docs { next }
 
-  echo "Resolving config dependencies..."
-  make olddefconfig
-BLOCK
+  # Inject custom block after first make olddefconfig
+  /^  make olddefconfig$/ && !injected {
+    print
+    print ""
+    print "  echo \"Trimming to used modules with localmodconfig...\""
+    print "  yes \"\" | make LSMOD='"$MODPROBED_DB"' localmodconfig"
+    print ""
+    print "  echo \"Applying custom kernel config...\""
+    print "  scripts/config --disable CC_OPTIMIZE_FOR_PERFORMANCE"
+    print "  scripts/config --enable CC_OPTIMIZE_FOR_PERFORMANCE_O3"
+    print "  scripts/config --enable X86_NATIVE_CPU"
+    print "  scripts/config --disable CPU_MITIGATIONS"
+    print "  scripts/config --disable TRANSPARENT_HUGEPAGE_ALWAYS"
+    print "  scripts/config --enable TRANSPARENT_HUGEPAGE_MADVISE"
+    print "  scripts/config --enable TCP_CONG_BBR"
+    print "  scripts/config --set-str DEFAULT_TCP_CONG bbr"
+    print "  scripts/config --enable NET_SCH_FQ"
+    print "  scripts/config --set-val NR_CPUS 64"
+    print "  scripts/config --disable DEBUG_INFO_DWARF5"
+    print "  scripts/config --enable DEBUG_INFO_NONE"
+    print "  scripts/config --enable LTO_CLANG_THIN"
+    print ""
+    print "  echo \"Resolving config dependencies...\""
+    print "  make olddefconfig"
+    injected=1
+    next
+  }
 
-awk '/^  make olddefconfig$/ && !injected {print; while ((getline line < "/tmp/custom_block.txt") > 0) print line; close("/tmp/custom_block.txt"); injected=1; next} 1' PKGBUILD > PKGBUILD.tmp && mv PKGBUILD.tmp PKGBUILD
-rm -f /tmp/custom_block.txt
+  { print }
+' PKGBUILD > PKGBUILD.tmp && mv PKGBUILD.tmp PKGBUILD
 
 echo "=== Verifying modifications ==="
-check() { local desc="$1" cmd="$2" expected="$3"
-  local got; got=$(eval "$cmd" || true)
+check() { local desc="$1" pattern="$2" expected="$3"
+  local got; got=$(grep -c "$pattern" PKGBUILD || true)
   if [[ "$got" != "$expected" ]]; then
     echo "FAIL: $desc (expected $expected, got $got)"; exit 1
   fi
 }
-check "pkgbase rename"           "grep -c '^pkgbase=linux-custom$' PKGBUILD" "1"
-check "htmldocs removed"         "grep -c 'make htmldocs' PKGBUILD" "0"
-check "_package-docs removed"    "grep -c '_package-docs()' PKGBUILD" "0"
-check "docs pkgname removed"     "grep -c '\"[$]pkgbase-docs\"' PKGBUILD" "0"
-check "graphviz removed"         "grep -c 'graphviz' PKGBUILD" "0"
-check "localmodconfig injected"  "grep -c 'localmodconfig' PKGBUILD" "2"
-check "X86_NATIVE_CPU set"       "grep -c 'X86_NATIVE_CPU' PKGBUILD" "1"
-check "CPU_MITIGATIONS set"      "grep -c 'CPU_MITIGATIONS' PKGBUILD" "1"
-check "BBR configured"           "grep -c 'DEFAULT_TCP_CONG' PKGBUILD" "1"
-check "NR_CPUS set"              "grep -c 'NR_CPUS' PKGBUILD" "1"
-check "DEBUG_INFO_NONE set"      "grep -c 'DEBUG_INFO_NONE' PKGBUILD" "1"
-check "THP madvise set"          "grep -c 'TRANSPARENT_HUGEPAGE_MADVISE' PKGBUILD" "1"
-check "O3 optimization set"      "grep -c 'CC_OPTIMIZE_FOR_PERFORMANCE_O3' PKGBUILD" "1"
-check "LLVM enabled"             "grep -c '^export LLVM=1$' PKGBUILD" "1"
-check "ThinLTO set"              "grep -c 'LTO_CLANG_THIN' PKGBUILD" "1"
+check "pkgbase rename"           '^pkgbase=linux-custom$'          1
+check "htmldocs removed"         'make htmldocs'                   0
+check "_package-docs removed"    '_package-docs()'                 0
+check "docs pkgname removed"     '"[$]pkgbase-docs"'               0
+check "graphviz removed"         'graphviz'                        0
+check "localmodconfig injected"  'localmodconfig'                  2
+check "X86_NATIVE_CPU set"       'X86_NATIVE_CPU'                  1
+check "CPU_MITIGATIONS set"      'CPU_MITIGATIONS'                 1
+check "BBR configured"           'DEFAULT_TCP_CONG'                1
+check "NR_CPUS set"              'NR_CPUS'                         1
+check "DEBUG_INFO_NONE set"      'DEBUG_INFO_NONE'                 1
+check "THP madvise set"          'TRANSPARENT_HUGEPAGE_MADVISE'    1
+check "O3 optimization set"      'CC_OPTIMIZE_FOR_PERFORMANCE_O3'  1
+check "LLVM enabled"             '^export LLVM=1$'                 1
+check "ThinLTO set"              'LTO_CLANG_THIN'                  1
 echo "All modifications verified."
 
 echo "=== Starting kernel build ==="
