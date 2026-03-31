@@ -61,8 +61,7 @@ awk '
     print "  scripts/config --set-str DEFAULT_TCP_CONG bbr"
     print "  scripts/config --enable NET_SCH_FQ"
     print "  scripts/config --set-val NR_CPUS 64"
-    print "  scripts/config --disable DEBUG_INFO_DWARF5"
-    print "  scripts/config --enable DEBUG_INFO_NONE"
+    print "  scripts/config --enable DEBUG_INFO_BTF"
     print "  scripts/config --enable LTO_CLANG_THIN"
     print ""
     print "  echo \"Resolving config dependencies...\""
@@ -91,7 +90,7 @@ check "X86_NATIVE_CPU set"       'X86_NATIVE_CPU'                  1
 check "CPU_MITIGATIONS set"      'CPU_MITIGATIONS'                 1
 check "BBR configured"           'DEFAULT_TCP_CONG'                1
 check "NR_CPUS set"              'NR_CPUS'                         1
-check "DEBUG_INFO_NONE set"      'DEBUG_INFO_NONE'                 1
+check "DEBUG_INFO_BTF set"       'enable DEBUG_INFO_BTF$'          1
 check "THP madvise set"          'TRANSPARENT_HUGEPAGE_MADVISE'    1
 check "O3 optimization set"      'CC_OPTIMIZE_FOR_PERFORMANCE_O3'  1
 check "LLVM enabled"             '^export LLVM=1$'                 1
