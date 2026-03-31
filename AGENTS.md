@@ -48,7 +48,7 @@ This repo has two layers:
 1. Runs `modprobed-db store` to refresh the module database
 2. Fetches a fresh Arch `linux` PKGBUILD via `paru -G linux` into `./linux` (replacing any existing contents)
 3. Patches the PKGBUILD inline with sed/awk (content-matching patterns only, no line numbers)
-4. Runs 13 post-patch grep assertions to verify all modifications applied
+4. Runs 15 post-patch grep assertions to verify all modifications applied
 5. Runs `makepkg -s` to build the customized kernel
 
 ### PKGBUILD modifications applied (in order)
@@ -58,15 +58,15 @@ This repo has two layers:
 4. Remove `_package-docs()` function entirely
 5. Remove `"$pkgbase-docs"` from `pkgname` array
 6. Inject into `prepare()` after the first `make olddefconfig`:
-   - `make LSMOD=$HOME/.config/modprobed.db localmodconfig` (trim to used modules)
-   - `scripts/config` calls for 12 kernel config options (see below)
+   - `yes "" | make LSMOD=$HOME/.config/modprobed.db localmodconfig` (trim to used modules, auto-accept defaults for new config options)
+   - `scripts/config` calls for 13 kernel config options (see below)
    - A second `make olddefconfig` to resolve dependencies
 
 ### Kernel config optimizations
 | Option | Action | Rationale |
 |---|---|---|
 | `CC_OPTIMIZE_FOR_PERFORMANCE` | disable | Replaced by `-O3` below |
-| `CC_OPTIMIZE_FOR_PERFORMANCE_O3` | enable | GCC `-O3` optimization (default is `-O2`). ~1-3% improvement in kernel-heavy workloads |
+| `CC_OPTIMIZE_FOR_PERFORMANCE_O3` | enable | Clang `-O3` optimization (default is `-O2`). ~1-3% improvement in kernel-heavy workloads |
 | `X86_NATIVE_CPU` | enable | `-march=native` at kernel level (mainline 6.16+) |
 | `CPU_MITIGATIONS` | disable | Single toggle cascades to all 25 `MITIGATION_*` options |
 | `TRANSPARENT_HUGEPAGE_ALWAYS` | disable | Switch THP to madvise-only |
@@ -77,6 +77,7 @@ This repo has two layers:
 | `NR_CPUS` | set `64` | Down from 8192 (Ryzen 9 9955HX = 16 cores) |
 | `DEBUG_INFO_DWARF5` | disable | No debug info for smaller kernel image |
 | `DEBUG_INFO_NONE` | enable | Explicit no-debug-info selection |
+| `LTO_CLANG_THIN` | enable | ThinLTO via Clang. Cross-TU link-time optimization, ~3-5% improvement |
 
 ### Key design decisions
 - **sed/awk not unified diff**: Patches via content-matching sed/awk patterns, not a `.patch` file. This is resilient to upstream PKGBUILD line number changes across kernel releases.
@@ -85,20 +86,20 @@ This repo has two layers:
 - **makepkg.conf BUILDDIR respected**: The user's `makepkg.conf` `BUILDDIR` (tmpfs) is used by `makepkg` for actual compilation.
 - **No graysky2 patch needed**: `CONFIG_X86_NATIVE_CPU` is in mainline since 6.16.
 - **BBRv1/v2 not v3**: BBRv3 is not in mainline as of 6.19.
-- **localmodconfig ordering**: Must be after `make olddefconfig` (needs a valid `.config`), and `scripts/config` must be after `localmodconfig` (to override any module decisions).
-- **No LTO**: Requires Clang; user has GCC setup.
+- **localmodconfig ordering**: Must be after `make olddefconfig` (needs a valid `.config`), and `scripts/config` must be after `localmodconfig` (to override any module decisions). Uses `yes "" |` to auto-accept defaults for new config options introduced in kernel updates, preventing interactive prompts.
+- **ThinLTO via Clang**: `CONFIG_LTO_CLANG_THIN` enabled. Cross-TU link-time optimization for ~3-5% improvement. Requires LLVM toolchain (`export LLVM=1` + clang/llvm/lld makedepends).
 
 ### Modifying build.sh
 - All sed/awk patterns match CONTENT, not line numbers — verify patterns still match if the upstream Arch PKGBUILD changes.
-- The awk injection for `_package-docs()` removal matches the exact function signature `^_package-docs() {$` with closing `^}$` — if Arch changes the function formatting, the awk may need updating.
-- The heredoc uses unquoted `<< BLOCK` — `$HOME` and `$MODPROBED_DB` expand at script runtime. This is intentional.
+- The single awk pass handles htmldocs makedepends block removal, `_package-docs()` removal, and config injection after `make olddefconfig` — if Arch changes function formatting or makedepends block structure, the awk patterns may need updating.
 - After modifying, always run: `bash -n build.sh` and re-verify grep assertion expected counts.
-- The 13 grep assertions in the script itself catch broken patches at runtime — keep them in sync with any sed/awk changes.
+- The 15 grep assertions in the script itself catch broken patches at runtime — keep them in sync with any sed/awk changes.
 
 ### Environment requirements
 - `paru` (AUR helper) installed
 - `modprobed-db` installed with database at `$HOME/.config/modprobed.db`
 - `makepkg` and kernel build dependencies (bc, rust-bindgen, etc.)
+- `clang`, `llvm`, `lld` (Clang toolchain, required for ThinLTO)
 - Interactive sudo available (for `makepkg -s` dependency installation)
 - User's `makepkg.conf` already has `-march=native`, `-j$(nproc)`, ccache, mold — these apply automatically
 
@@ -149,7 +150,7 @@ Run these from `linux/` unless stated otherwise.
 - `build.sh`
   - custom kernel build script at repo root; fetches, patches, and builds the kernel
   - uses sed/awk content patterns — no line-number-based modifications
-  - contains 13 grep assertions that self-verify all patches applied correctly
+  - contains 15 grep assertions that self-verify all patches applied correctly
 - `linux/PKGBUILD`
   - source of truth for package metadata, sources, and build/package phases
   - build.sh fetches a fresh copy via `paru -G linux` into `./linux`, replacing any existing contents
