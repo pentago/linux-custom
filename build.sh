@@ -63,6 +63,8 @@ awk '
     print "  scripts/config --set-val NR_CPUS 64"
     print "  scripts/config --enable DEBUG_INFO_BTF"
     print "  scripts/config --enable LTO_CLANG_THIN"
+    print "  scripts/config --enable PCIEASPM_PERFORMANCE"
+    print "  scripts/config --enable PCI_REALLOC_ENABLE_AUTO"
     print ""
     print "  echo \"Force-enabling initramfs-critical modules...\""
     print "  scripts/config --module CRYPTO_LZ4"
@@ -99,7 +101,9 @@ check "THP madvise set"          'TRANSPARENT_HUGEPAGE_MADVISE'    1
 check "O3 optimization set"      'CC_OPTIMIZE_FOR_PERFORMANCE_O3'  1
 check "LLVM enabled"             '^export LLVM=1$'                 1
 check "ThinLTO set"              'LTO_CLANG_THIN'                  1
-check "CRYPTO_LZ4 forced"         'CRYPTO_LZ4'                      1
+check "PCIEASPM performance"     'PCIEASPM_PERFORMANCE'             1
+check "ReBAR enabled"            'PCI_REALLOC_ENABLE_AUTO'          1
+check "CRYPTO_LZ4 forced"        'CRYPTO_LZ4'                       1
 check "DM_INTEGRITY forced"       'DM_INTEGRITY'                    1
 echo "All modifications verified."
 
