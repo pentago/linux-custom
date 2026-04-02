@@ -223,7 +223,7 @@ echo "All modifications verified."
 
 echo "=== Starting kernel build ==="
 # Resolve BUILDDIR from makepkg.conf (respects user overrides) and wipe stale build tree
-BUILDDIR=$(source /etc/makepkg.conf 2>/dev/null; [[ -f "$HOME/.makepkg.conf" ]] && source "$HOME/.makepkg.conf"; echo "${BUILDDIR:-/tmp/makepkg}")
+BUILDDIR=$(source /etc/makepkg.conf 2>/dev/null; echo "${BUILDDIR:-/tmp/makepkg}")
 echo "Cleaning previous build tree at $BUILDDIR/linux-custom..."
 rm -rf "$BUILDDIR/linux-custom"
 makepkg -s
