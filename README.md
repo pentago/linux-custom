@@ -7,7 +7,7 @@ Custom Arch Linux kernel build script for AMD Ryzen 9 9955HX (Zen 5). Fetches th
 - Refreshes module database via `modprobed-db store`
 - Fetches fresh Arch `linux` PKGBUILD via `paru -G linux`
 - Patches the PKGBUILD inline with sed/awk (content-matching, no line numbers)
-- Runs 17 grep assertions to verify all patches applied correctly
+- Runs 29 grep assertions to verify all patches applied correctly
 - Builds the `linux-custom` package with `makepkg -s`
 
 ## PKGBUILD modifications
@@ -27,6 +27,7 @@ Custom Arch Linux kernel build script for AMD Ryzen 9 9955HX (Zen 5). Fetches th
 | ThinLTO | `CONFIG_LTO_CLANG_THIN` on. Cross-translation-unit link-time optimization via Clang. ~3-5% improvement |
 | BPF type info | `DEBUG_INFO_BTF` enabled. Keeps stock DWARF5 — required for bpftool `vmlinux.h` generation |
 | Force initramfs modules | `CRYPTO_LZ4` and `DM_INTEGRITY` as modules. Missed by `localmodconfig` but required by mkinitcpio `systemd`/`sd-encrypt` hooks |
+| Force Docker modules | `BRIDGE`, `VETH`, `OVERLAY_FS`, `NF_CONNTRACK`, `NF_NAT`, `VXLAN`, `MACVLAN`, `IPVLAN`, `XFRM_USER`, and iptables modules. Missed by `localmodconfig` but required for container networking |
 
 ## Prerequisites
 
@@ -60,7 +61,7 @@ sudo pacman -U linux-custom-*.pkg.tar.zst linux-custom-headers-*.pkg.tar.zst
 
 - All PKGBUILD patches use content-matching sed/awk, not line numbers. This makes them resilient to upstream changes across kernel releases.
 - `linux/` is `.gitignore`d and replaced fresh on every run.
-- 17 post-patch grep assertions fail the script immediately if any modification didn't apply.
+- 29 post-patch grep assertions fail the script immediately if any modification didn't apply.
 - ThinLTO via Clang/LLVM (`CONFIG_LTO_CLANG_THIN`). Cross-TU link-time optimization for ~3-5% improvement.
 - No out-of-tree scheduler patches (BORE, BMQ, etc.). Stock EEVDF scheduler only.
 - `$HOME` used for all paths (tilde doesn't expand in double-quoted bash assignments).

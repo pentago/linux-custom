@@ -48,7 +48,7 @@ This repo has two layers:
 1. Runs `modprobed-db store` to refresh the module database
 2. Fetches a fresh Arch `linux` PKGBUILD via `paru -G linux` into `./linux` (replacing any existing contents)
 3. Patches the PKGBUILD inline with sed/awk (content-matching patterns only, no line numbers)
-4. Runs 17 post-patch grep assertions to verify all modifications applied
+4. Runs 29 post-patch grep assertions to verify all modifications applied
 5. Runs `makepkg -s` to build the customized kernel
 
 ### PKGBUILD modifications applied (in order)
@@ -61,6 +61,7 @@ This repo has two layers:
    - `yes "" | make LSMOD=$HOME/.config/modprobed.db localmodconfig` (trim to used modules, auto-accept defaults for new config options)
    - `scripts/config` calls for 12 kernel config options (see below)
    - `scripts/config --module` for 2 initramfs-critical modules (`CRYPTO_LZ4`, `DM_INTEGRITY`) missed by `localmodconfig`
+   - `scripts/config --module` for 15 Docker/container modules (`BRIDGE`, `VETH`, `OVERLAY_FS`, `NF_CONNTRACK`, `NF_NAT`, `VXLAN`, `MACVLAN`, `IPVLAN`, `XFRM_USER`, and iptables modules) missed by `localmodconfig`
    - A second `make olddefconfig` to resolve dependencies
 
 ### Kernel config optimizations
@@ -80,6 +81,22 @@ This repo has two layers:
 | `LTO_CLANG_THIN` | enable | ThinLTO via Clang. Cross-TU link-time optimization, ~3-5% improvement |
 | `CRYPTO_LZ4` | module | Required by mkinitcpio `systemd` hook. Missed by `localmodconfig` (loaded on-demand by crypto subsystem) |
 | `DM_INTEGRITY` | module | Required by mkinitcpio `sd-encrypt` hook. Missed by `localmodconfig` |
+| `BRIDGE` | module | Docker container networking (docker0 bridge). Missed by `localmodconfig` |
+| `VETH` | module | Virtual ethernet pairs for containers. Missed by `localmodconfig` |
+| `OVERLAY_FS` | enable | Docker default storage driver. Missed by `localmodconfig` |
+| `NF_CONNTRACK` | module | Connection tracking for container NAT. Missed by `localmodconfig` |
+| `NF_NAT` | module | NAT for container internet access. Missed by `localmodconfig` |
+| `NETFILTER_XT_MATCH_ADDRTYPE` | module | iptables address type matching for Docker |
+| `NETFILTER_XT_MATCH_CONNTRACK` | module | iptables conntrack matching for Docker |
+| `NETFILTER_XT_MARK` | module | Packet marking for Docker networking |
+| `IP_NF_NAT` | module | IPv4 NAT for Docker |
+| `IP_NF_TARGET_MASQUERADE` | module | NAT masquerade for container internet access |
+| `IP_NF_TARGET_REJECT` | module | REJECT target for Docker firewall rules |
+| `IP_NF_MANGLE` | module | Packet mangling for Docker networking |
+| `VXLAN` | module | Overlay networking (Docker Swarm/Compose) |
+| `MACVLAN` | module | macvlan network driver for Docker |
+| `IPVLAN` | module | ipvlan network driver for Docker |
+| `XFRM_USER` | module | IPsec for encrypted overlay networks |
 
 ### Key design decisions
 - **sed/awk not unified diff**: Patches via content-matching sed/awk patterns, not a `.patch` file. This is resilient to upstream PKGBUILD line number changes across kernel releases.
@@ -97,7 +114,7 @@ This repo has two layers:
 - All sed/awk patterns match CONTENT, not line numbers — verify patterns still match if the upstream Arch PKGBUILD changes.
 - The single awk pass handles htmldocs makedepends block removal, `_package-docs()` removal, and config injection after `make olddefconfig` — if Arch changes function formatting or makedepends block structure, the awk patterns may need updating.
 - After modifying, always run: `bash -n build.sh` and re-verify grep assertion expected counts.
-- The 17 grep assertions in the script itself catch broken patches at runtime — keep them in sync with any sed/awk changes.
+- The 29 grep assertions in the script itself catch broken patches at runtime — keep them in sync with any sed/awk changes.
 
 ### Environment requirements
 - `paru` (AUR helper) installed
@@ -154,7 +171,7 @@ Run these from `linux/` unless stated otherwise.
 - `build.sh`
   - custom kernel build script at repo root; fetches, patches, and builds the kernel
   - uses sed/awk content patterns — no line-number-based modifications
-  - contains 17 grep assertions that self-verify all patches applied correctly
+  - contains 29 grep assertions that self-verify all patches applied correctly
 - `linux/PKGBUILD`
   - source of truth for package metadata, sources, and build/package phases
   - build.sh fetches a fresh copy via `paru -G linux` into `./linux`, replacing any existing contents

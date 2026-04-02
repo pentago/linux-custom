@@ -110,6 +110,27 @@ awk '
     print "  scripts/config --module CRYPTO_LZ4"
     print "  scripts/config --module DM_INTEGRITY"
     print ""
+    print "  echo \"Force-enabling Docker/container modules...\""
+    print "  scripts/config --module BRIDGE"
+    print "  scripts/config --module VETH"
+    print "  scripts/config --enable OVERLAY_FS"
+    print "  scripts/config --module NF_CONNTRACK"
+    print "  scripts/config --module NF_NAT"
+    print "  scripts/config --module NETFILTER_XT_MATCH_ADDRTYPE"
+    print "  scripts/config --module NETFILTER_XT_MATCH_CONNTRACK"
+    print "  scripts/config --module NETFILTER_XT_MARK"
+    print "  scripts/config --module IP_NF_NAT"
+    print "  scripts/config --module IP_NF_TARGET_MASQUERADE"
+    print "  scripts/config --module IP_NF_TARGET_REJECT"
+    print "  scripts/config --module IP_NF_MANGLE"
+    print "  scripts/config --module VXLAN"
+    print "  scripts/config --module MACVLAN"
+    print "  scripts/config --module IPVLAN"
+    print "  scripts/config --module XFRM_USER"
+    print "  scripts/config --module IP_NF_RAW"
+    print "  scripts/config --module NETFILTER_XT_MATCH_MULTIPORT"
+    print "  scripts/config --module NETFILTER_XT_MATCH_COMMENT"
+    print ""
     print "  echo \"Resolving config dependencies...\""
     print "  make olddefconfig"
     injected=1
@@ -143,6 +164,13 @@ check "LLVM enabled"                '^export LLVM=1$'                 1
 check "ThinLTO set"                 'LTO_CLANG_THIN'                  1
 check "CRYPTO_LZ4 forced"           'CRYPTO_LZ4'                      1
 check "DM_INTEGRITY forced"         'DM_INTEGRITY'                    1
+check "BRIDGE forced"               'module BRIDGE$'                  1
+check "VETH forced"                 'module VETH$'                    1
+check "OVERLAY_FS forced"           'OVERLAY_FS'                      1
+check "NF_CONNTRACK forced"         'module NF_CONNTRACK$'            1
+check "NF_NAT forced"              'module NF_NAT$'                  1
+check "MASQUERADE forced"          'IP_NF_TARGET_MASQUERADE'         1
+check "VXLAN forced"               'module VXLAN$'                   1
 check "CachyOS base patch in source" 'cachyos-base\.patch'            1
 check "CachyOS BORE patch in source" 'cachyos-bore\.patch'            1
 check "CachyOS b2sums added"        "b2sums_x86_64=.*' '.*' '"        1
