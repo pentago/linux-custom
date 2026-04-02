@@ -20,38 +20,29 @@ cd "$SCRIPT_DIR"
 paru -G linux
 cd linux
 
-echo "=== Fetching CachyOS patches ==="
+echo "=== Resolving CachyOS patches from submodule ==="
 KERNEL_VER=$(grep '^pkgver=' PKGBUILD | cut -d= -f2)
 KERNEL_MAJOR_MINOR=$(echo "$KERNEL_VER" | cut -d. -f1,2)
-echo "Kernel: $KERNEL_VER — fetching CachyOS patches for ${KERNEL_MAJOR_MINOR}"
+echo "Kernel: $KERNEL_VER — using CachyOS patches for ${KERNEL_MAJOR_MINOR}"
 
-rm -rf "$SCRIPT_DIR/cachy-tmp"
-git clone --depth=1 --filter=blob:none --sparse \
-  https://github.com/CachyOS/kernel-patches.git "$SCRIPT_DIR/cachy-tmp"
-git -C "$SCRIPT_DIR/cachy-tmp" sparse-checkout set \
-  "${KERNEL_MAJOR_MINOR}/all" \
-  "${KERNEL_MAJOR_MINOR}/sched"
+CACHY_SUBMODULE="$SCRIPT_DIR/cachyos-patches"
+CACHY_BASE_PATCH="$CACHY_SUBMODULE/${KERNEL_MAJOR_MINOR}/all/0001-cachyos-base-all.patch"
+CACHY_BORE_PATCH="$CACHY_SUBMODULE/${KERNEL_MAJOR_MINOR}/sched/0001-bore-cachy.patch"
 
-CACHY_BASE_PATCH=$(find "$SCRIPT_DIR/cachy-tmp/${KERNEL_MAJOR_MINOR}/all" \
-  -name '0001-cachyos-base-all.patch' | head -1)
-CACHY_BORE_PATCH=$(find "$SCRIPT_DIR/cachy-tmp/${KERNEL_MAJOR_MINOR}/sched" \
-  -name '0001-bore-cachy.patch' | head -1)
-
-if [[ -z "$CACHY_BASE_PATCH" ]]; then
-  echo "FAIL: No CachyOS base patch found for kernel ${KERNEL_MAJOR_MINOR}"
-  rm -rf "$SCRIPT_DIR/cachy-tmp"
+if [[ ! -f "$CACHY_BASE_PATCH" ]]; then
+  echo "FAIL: No CachyOS base patch found at $CACHY_BASE_PATCH"
+  echo "Hint: Run 'git submodule update --init' or update the submodule pin for kernel ${KERNEL_MAJOR_MINOR}"
   exit 1
 fi
-if [[ -z "$CACHY_BORE_PATCH" ]]; then
-  echo "FAIL: No CachyOS BORE patch found for kernel ${KERNEL_MAJOR_MINOR}"
-  rm -rf "$SCRIPT_DIR/cachy-tmp"
+if [[ ! -f "$CACHY_BORE_PATCH" ]]; then
+  echo "FAIL: No CachyOS BORE patch found at $CACHY_BORE_PATCH"
+  echo "Hint: Run 'git submodule update --init' or update the submodule pin for kernel ${KERNEL_MAJOR_MINOR}"
   exit 1
 fi
 
 cp "$CACHY_BASE_PATCH" cachyos-base.patch
 cp "$CACHY_BORE_PATCH" cachyos-bore.patch
-rm -rf "$SCRIPT_DIR/cachy-tmp"
-echo "Fetched: cachyos-base.patch, cachyos-bore.patch"
+echo "Copied: cachyos-base.patch, cachyos-bore.patch"
 
 CACHY_BASE_B2=$(b2sum cachyos-base.patch | cut -d' ' -f1)
 CACHY_BORE_B2=$(b2sum cachyos-bore.patch | cut -d' ' -f1)
@@ -65,11 +56,13 @@ sed -i \
   -e '/"\$pkgbase-docs"/d' \
   -e '/^export KBUILD_BUILD_HOST/i export LLVM=1' \
   -e '/^makedepends=(/a\  clang\n  llvm\n  lld' \
-  -e 's/^source_x86_64=(config\.x86_64)$/source_x86_64=(config.x86_64\n  cachyos-base.patch\n  cachyos-bore.patch)/' \
   PKGBUILD
 
-# Add both CachyOS patch b2sums to b2sums_x86_64
-sed -i "/^b2sums_x86_64=('/ s/)$/ '$CACHY_BASE_B2' '$CACHY_BORE_B2')/" PKGBUILD
+# Add CachyOS patches to the main source array (after the arch1 patch line)
+sed -i "/linux-\\\$_srctag\.patch\.zst/ a\\  cachyos-base.patch\\n  cachyos-bore.patch" PKGBUILD
+
+# Append CachyOS patch b2sums to the main b2sums array (before its closing paren)
+sed -i "/^b2sums=(/,/'SKIP')\$/ { /'SKIP')\$/ s/'SKIP')\$/'SKIP'\n  '$CACHY_BASE_B2'\n  '$CACHY_BORE_B2')/ }" PKGBUILD
 
 # Pass 2: block removal + config injection (single awk pass)
 awk '
@@ -175,7 +168,7 @@ check "MASQUERADE forced"          'IP_NF_TARGET_MASQUERADE'         1
 check "VXLAN forced"               'module VXLAN$'                   1
 check "CachyOS base patch in source" 'cachyos-base\.patch'            1
 check "CachyOS BORE patch in source" 'cachyos-bore\.patch'            1
-check "CachyOS b2sums added"        "b2sums_x86_64=.*' '.*' '"        1
+check "CachyOS b2sums added"        "^  '[0-9a-f]"                    2
 check "CACHY enabled"               'enable CACHY$'                   1
 check "SCHED_BORE enabled"          'SCHED_BORE'                      1
 check "PCIEASPM performance"        'PCIEASPM_PERFORMANCE'             1
