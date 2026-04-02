@@ -64,6 +64,10 @@ sed -i "/linux-\\\$_srctag\.patch\.zst/ a\\  cachyos-base.patch\\n  cachyos-bore
 # Append CachyOS patch b2sums to the main b2sums array (before its closing paren)
 sed -i "/^b2sums=(/,/'SKIP')\$/ { /'SKIP')\$/ s/'SKIP')\$/'SKIP'\n  '$CACHY_BASE_B2'\n  '$CACHY_BORE_B2')/ }" PKGBUILD
 
+# Append SKIP entries to sha256sums for the two new patch files
+# (b2sums already verifies them; sha256sums must match source= count)
+sed -i "/^sha256sums=(/,/'SKIP')\$/ { /'SKIP')\$/ s/'SKIP')\$/'SKIP'\n            'SKIP'\n            'SKIP')/ }" PKGBUILD
+
 # Pass 2: block removal + config injection (single awk pass)
 awk '
   # Remove htmldocs makedepends block
@@ -169,6 +173,7 @@ check "VXLAN forced"               'module VXLAN$'                   1
 check "CachyOS base patch in source" 'cachyos-base\.patch'            1
 check "CachyOS BORE patch in source" 'cachyos-bore\.patch'            1
 check "CachyOS b2sums added"        "^  '[0-9a-f]"                    2
+check "sha256sums SKIP count"       "^            'SKIP'"             4
 check "CACHY enabled"               'enable CACHY$'                   1
 check "SCHED_BORE enabled"          'SCHED_BORE'                      1
 check "PCIEASPM performance"        'PCIEASPM_PERFORMANCE'             1
