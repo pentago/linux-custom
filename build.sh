@@ -105,6 +105,8 @@ awk '
     print "  scripts/config --enable LTO_CLANG_THIN"
     print "  scripts/config --enable CACHY"
     print "  scripts/config --enable SCHED_BORE"
+    print "  scripts/config --enable PCIEASPM_PERFORMANCE"
+    print "  scripts/config --enable PCI_REALLOC_ENABLE_AUTO"
     print ""
     print "  echo \"Force-enabling initramfs-critical modules...\""
     print "  scripts/config --module CRYPTO_LZ4"
@@ -176,6 +178,8 @@ check "CachyOS BORE patch in source" 'cachyos-bore\.patch'            1
 check "CachyOS b2sums added"        "b2sums_x86_64=.*' '.*' '"        1
 check "CACHY enabled"               'enable CACHY$'                   1
 check "SCHED_BORE enabled"          'SCHED_BORE'                      1
+check "PCIEASPM performance"        'PCIEASPM_PERFORMANCE'             1
+check "ReBAR enabled"               'PCI_REALLOC_ENABLE_AUTO'          1
 echo "All modifications verified."
 
 echo "=== Starting kernel build ==="
