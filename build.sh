@@ -87,7 +87,7 @@ sed -i "/^b2sums=(/,/'SKIP')\$/ { /'SKIP')\$/ s/'SKIP')\$/'SKIP'\n  '$CACHY_BASE
 # (b2sums already verifies them; sha256sums must match source= count)
 sed -i "/^sha256sums=(/,/'SKIP')\$/ { /'SKIP')\$/ s/'SKIP')\$/'SKIP'\n            'SKIP'\n            'SKIP')/ }" PKGBUILD
 
-sed -i "s#patch -Np1 < \"\.\./\\\$src\"#if [[ \"\\\$src\" == \"cachyos-base.patch\" ]]; then\n      patch -Np1 -F3 < \"../\\\$src\"\n    else\n      patch -Np1 < \"../\\\$src\"\n    fi#" PKGBUILD
+sed -i "s#patch -Np1 < \"\.\./\\\$src\"#if [[ \"\\\$src\" == \"cachyos-base.patch\" ]]; then\n      patch -Np1 -F3 < \"../\\\$src\" || true\n    else\n      patch -Np1 < \"../\\\$src\" || true\n    fi#" PKGBUILD
 
 # Pass 2: block removal + config injection (single awk pass)
 awk '
@@ -157,6 +157,22 @@ awk '
     next
   }
 
+  # Inject .rej guard after patch loop done
+  /^    fi$/ && !rej_guard { saw_patch_fi=1 }
+  saw_patch_fi && /^  done$/ && !rej_guard {
+    print
+    print ""
+    print "  # Fail if any patch hunks were rejected"
+    print "  if find . -name \"*.rej\" | grep -q .; then"
+    print "    echo \"ERROR: Patch rejected hunks found:\""
+    print "    find . -name \"*.rej\""
+    print "    exit 1"
+    print "  fi"
+    rej_guard=1
+    saw_patch_fi=0
+    next
+  }
+
   { print }
 ' PKGBUILD > PKGBUILD.tmp && mv PKGBUILD.tmp PKGBUILD
 
@@ -191,8 +207,10 @@ check "NF_CONNTRACK forced"         'module NF_CONNTRACK$'            1
 check "NF_NAT forced"              'module NF_NAT$'                  1
 check "MASQUERADE forced"          'IP_NF_TARGET_MASQUERADE'         1
 check "VXLAN forced"               'module VXLAN$'                   1
-check "base patch uses fuzz"        'if \[\[ "\$src" == "cachyos-base\.patch" \]\]; then' 1
-check "base patch fuzz command"     'patch -Np1 -F3 < "\.\./\$src"'      1
+check "base patch uses fuzz"        'if \[\[ "[$]src" == "cachyos-base\.patch" \]\]; then' 1
+check "base patch fuzz command"     'patch -Np1 -F3 < "\.\./[$]src"'      1
+check "bore patch uses || true"     'patch -Np1 < "\.\./[$]src" [|][|] true' 1
+check ".rej guard injected"         'if find \. -name "\*\.rej" \| grep -q \.; then' 1
 check "CachyOS base patch in source" '^  cachyos-base\.patch$'        1
 check "CachyOS BORE patch in source" '^  cachyos-bore\.patch$'        1
 check "CachyOS b2sums added"        "^  '[0-9a-f]"                    2
