@@ -1,0 +1,3 @@
+[submodule "cachyos-patches"]
+	path = cachyos-patches
+	url = https://github.com/CachyOS/kernel-patches.git
