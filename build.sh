@@ -40,7 +40,21 @@ if [[ ! -f "$CACHY_BORE_PATCH" ]]; then
   exit 1
 fi
 
-cp "$CACHY_BASE_PATCH" cachyos-base.patch
+python3 - "$CACHY_BASE_PATCH" cachyos-base.patch << 'PYEOF'
+import sys, re
+src, dst = sys.argv[1], sys.argv[2]
+content = open(src).read()
+# Files already merged into mainline 6.19.10 — applying would cause duplicate definitions
+skip_files = {
+    "b/kernel/fork.c",
+    "b/drivers/pci/quirks.c",
+    "b/drivers/bluetooth/btusb.c",
+}
+parts = re.split(r'(?=^diff --git )', content, flags=re.MULTILINE)
+kept = [p for p in parts if not any(f' {sf}' in p.split('\n')[0] for sf in skip_files)]
+open(dst, 'w').write(''.join(kept))
+PYEOF
+echo "Generated filtered cachyos-base.patch (stripped mainline-upstreamed hunks)"
 cp "$CACHY_BORE_PATCH" cachyos-bore.patch
 echo "Copied: cachyos-base.patch, cachyos-bore.patch"
 
@@ -53,7 +67,7 @@ echo "=== Patching PKGBUILD ==="
 sed -i \
   -e 's/^pkgbase=linux$/pkgbase=linux-custom/' \
   -e '/make htmldocs/d' \
-  -e '/"\$pkgbase-docs"/d' \
+  -e "/\"\\\$pkgbase-docs\"/d" \
   -e '/^export KBUILD_BUILD_HOST/i export LLVM=1' \
   -e '/^makedepends=(/a\  clang\n  llvm\n  lld' \
   PKGBUILD
@@ -68,7 +82,7 @@ sed -i "/^b2sums=(/,/'SKIP')\$/ { /'SKIP')\$/ s/'SKIP')\$/'SKIP'\n  '$CACHY_BASE
 # (b2sums already verifies them; sha256sums must match source= count)
 sed -i "/^sha256sums=(/,/'SKIP')\$/ { /'SKIP')\$/ s/'SKIP')\$/'SKIP'\n            'SKIP'\n            'SKIP')/ }" PKGBUILD
 
-sed -i 's#patch -Np1 < "\.\./\$src"#patch -Np1 -F3 --forward < "../$src" || :#' PKGBUILD
+sed -i "s#patch -Np1 < \"\.\./\\\$src\"#if [[ \"\\\$src\" == \"cachyos-base.patch\" ]]; then\n      patch -Np1 -F3 < \"../\\\$src\"\n    else\n      patch -Np1 < \"../\\\$src\"\n    fi#" PKGBUILD
 
 # Pass 2: block removal + config injection (single awk pass)
 awk '
@@ -81,15 +95,6 @@ awk '
   /^_package-docs\(\) \{$/ { skip_docs=1; next }
   skip_docs && /^\}$/ { skip_docs=0; next }
   skip_docs { next }
-
-  # After the patch loop, inject a .rej guard before "Setting config..."
-  /^  echo "Setting config\.\.\."$/ && !rej_guard {
-    print "  if ls *.rej 2>/dev/null | grep -q .; then"
-    print "    echo \"FATAL: patch left reject files:\"; ls *.rej; exit 1"
-    print "  fi"
-    print ""
-    rej_guard=1
-  }
 
   # Inject custom block after first make olddefconfig
   /^  make olddefconfig$/ && !injected {
@@ -181,10 +186,10 @@ check "NF_CONNTRACK forced"         'module NF_CONNTRACK$'            1
 check "NF_NAT forced"              'module NF_NAT$'                  1
 check "MASQUERADE forced"          'IP_NF_TARGET_MASQUERADE'         1
 check "VXLAN forced"               'module VXLAN$'                   1
-check "patch forward+fuzz set"      'patch -Np1 -F3 --forward'        1
-check "rej guard injected"          'ls \*\.rej.*grep -q'              1
-check "CachyOS base patch in source" 'cachyos-base\.patch'            1
-check "CachyOS BORE patch in source" 'cachyos-bore\.patch'            1
+check "base patch uses fuzz"        'if \[\[ "\$src" == "cachyos-base\.patch" \]\]; then' 1
+check "base patch fuzz command"     'patch -Np1 -F3 < "\.\./\$src"'      1
+check "CachyOS base patch in source" '^  cachyos-base\.patch$'        1
+check "CachyOS BORE patch in source" '^  cachyos-bore\.patch$'        1
 check "CachyOS b2sums added"        "^  '[0-9a-f]"                    2
 check "sha256sums SKIP count"       "^            'SKIP'"             4
 check "CACHY enabled"               'enable CACHY$'                   1
