@@ -46,9 +46,14 @@ src, dst = sys.argv[1], sys.argv[2]
 content = open(src).read()
 # Files already merged into mainline 6.19.10 — applying would cause duplicate definitions
 skip_files = {
+    # Already merged into mainline 6.19.10 — applying causes duplicate definitions/reverts
     "b/kernel/fork.c",
     "b/drivers/pci/quirks.c",
     "b/drivers/bluetooth/btusb.c",
+    "b/drivers/acpi/processor_driver.c",
+    "b/drivers/gpu/drm/amd/amdgpu/amdgpu_device.c",
+    "b/drivers/usb/core/quirks.c",
+    "b/sound/hda/codecs/realtek/alc269.c",
 }
 parts = re.split(r'(?=^diff --git )', content, flags=re.MULTILINE)
 kept = [p for p in parts if not any(f' {sf}' in p.split('\n')[0] for sf in skip_files)]
