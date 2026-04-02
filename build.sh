@@ -111,13 +111,16 @@ awk '
     print "  echo \"Applying custom kernel config...\""
     print "  scripts/config --disable CC_OPTIMIZE_FOR_PERFORMANCE"
     print "  scripts/config --enable CC_OPTIMIZE_FOR_PERFORMANCE_O3"
+    print "  scripts/config --disable GENERIC_CPU"
     print "  scripts/config --enable X86_NATIVE_CPU"
     print "  scripts/config --disable CPU_MITIGATIONS"
     print "  scripts/config --disable TRANSPARENT_HUGEPAGE_ALWAYS"
     print "  scripts/config --enable TRANSPARENT_HUGEPAGE_MADVISE"
+    print "  scripts/config --disable TCP_CONG_CUBIC"
     print "  scripts/config --enable TCP_CONG_BBR"
     print "  scripts/config --set-str DEFAULT_TCP_CONG bbr"
     print "  scripts/config --enable NET_SCH_FQ"
+    print "  scripts/config --disable MAXSMP"
     print "  scripts/config --set-val NR_CPUS 64"
     print "  scripts/config --enable DEBUG_INFO_BTF"
     print "  scripts/config --enable LTO_CLANG_THIN"
@@ -189,10 +192,13 @@ check "_package-docs removed"       '_package-docs()'                 0
 check "docs pkgname removed"        '"[$]pkgbase-docs"'               0
 check "graphviz removed"            'graphviz'                        0
 check "localmodconfig injected"     'localmodconfig'                  2
-check "X86_NATIVE_CPU set"          'X86_NATIVE_CPU'                  1
-check "CPU_MITIGATIONS set"         'CPU_MITIGATIONS'                 1
+check "GENERIC_CPU disabled"         'disable GENERIC_CPU$'            1
+check "X86_NATIVE_CPU set"          'enable X86_NATIVE_CPU$'          1
+check "CPU_MITIGATIONS set"         'disable CPU_MITIGATIONS$'        1
+check "CUBIC disabled"              'disable TCP_CONG_CUBIC$'         1
 check "BBR configured"              'DEFAULT_TCP_CONG'                1
-check "NR_CPUS set"                 'NR_CPUS'                         1
+check "MAXSMP disabled"             'disable MAXSMP$'                 1
+check "NR_CPUS set"                 'NR_CPUS 64'                      1
 check "DEBUG_INFO_BTF set"          'enable DEBUG_INFO_BTF$'          1
 check "THP madvise set"             'TRANSPARENT_HUGEPAGE_MADVISE'    1
 check "O3 optimization set"         'CC_OPTIMIZE_FOR_PERFORMANCE_O3'  1
