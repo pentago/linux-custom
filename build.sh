@@ -68,6 +68,8 @@ sed -i "/^b2sums=(/,/'SKIP')\$/ { /'SKIP')\$/ s/'SKIP')\$/'SKIP'\n  '$CACHY_BASE
 # (b2sums already verifies them; sha256sums must match source= count)
 sed -i "/^sha256sums=(/,/'SKIP')\$/ { /'SKIP')\$/ s/'SKIP')\$/'SKIP'\n            'SKIP'\n            'SKIP')/ }" PKGBUILD
 
+sed -i 's#patch -Np1 < "\.\./\$src"#patch -Np1 -F3 --forward < "../$src" || :#' PKGBUILD
+
 # Pass 2: block removal + config injection (single awk pass)
 awk '
   # Remove htmldocs makedepends block
@@ -79,6 +81,15 @@ awk '
   /^_package-docs\(\) \{$/ { skip_docs=1; next }
   skip_docs && /^\}$/ { skip_docs=0; next }
   skip_docs { next }
+
+  # After the patch loop, inject a .rej guard before "Setting config..."
+  /^  echo "Setting config\.\.\."$/ && !rej_guard {
+    print "  if ls *.rej 2>/dev/null | grep -q .; then"
+    print "    echo \"FATAL: patch left reject files:\"; ls *.rej; exit 1"
+    print "  fi"
+    print ""
+    rej_guard=1
+  }
 
   # Inject custom block after first make olddefconfig
   /^  make olddefconfig$/ && !injected {
@@ -170,6 +181,8 @@ check "NF_CONNTRACK forced"         'module NF_CONNTRACK$'            1
 check "NF_NAT forced"              'module NF_NAT$'                  1
 check "MASQUERADE forced"          'IP_NF_TARGET_MASQUERADE'         1
 check "VXLAN forced"               'module VXLAN$'                   1
+check "patch forward+fuzz set"      'patch -Np1 -F3 --forward'        1
+check "rej guard injected"          'ls \*\.rej.*grep -q'              1
 check "CachyOS base patch in source" 'cachyos-base\.patch'            1
 check "CachyOS BORE patch in source" 'cachyos-bore\.patch'            1
 check "CachyOS b2sums added"        "^  '[0-9a-f]"                    2
