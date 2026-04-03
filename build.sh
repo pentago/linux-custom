@@ -15,9 +15,11 @@ fi
 modprobed-db store
 
 echo "=== Fetching Arch linux PKGBUILD ==="
+MIRROR_VER=$(pacman -Q linux | awk '{print $2}')
+echo "Mirror kernel version: $MIRROR_VER"
 rm -rf "$SCRIPT_DIR/linux"
 cd "$SCRIPT_DIR"
-paru -G linux
+pkgctl repo clone --protocol https --switch "$MIRROR_VER" linux
 cd linux
 
 echo "=== Resolving CachyOS patches from submodule ==="
